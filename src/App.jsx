@@ -39,6 +39,8 @@ function App() {
     { accessorKey: 'brandName', header: 'Brand' },
     { accessorKey: 'stockQuantity', header: 'In stock' },
   ]
+  // TanStack manages its own mutable table instance; it is intentionally not memoized.
+  // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({ data: inventory, columns, getCoreRowModel: getCoreRowModel(), getPaginationRowModel: getPaginationRowModel(), initialState: { pagination: { pageSize: 3 } } })
   return <main className="app-shell">
     <header className="hero-banner"><p className="eyebrow">Guitar Store Inventory Manager</p><h1>Register a guitar</h1><p>Build your store registry one instrument at a time.</p></header>
