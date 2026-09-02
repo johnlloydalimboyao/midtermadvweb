@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { flexRender, getCoreRowModel, getPaginationRowModel, useReactTable } from '@tanstack/react-table'
 import './App.css'
 
@@ -18,6 +18,9 @@ function App() {
   const [submitted, setSubmitted] = useState(false)
   const [inventory, setInventory] = useState([])
   const [view, setView] = useState('form')
+  const [selectedId, setSelectedId] = useState(null)
+  const [activeGuitar, setActiveGuitar] = useState(null)
+  const [lowStockOnly, setLowStockOnly] = useState(false)
   const updateField = ({ target: { name, value } }) => {
     setForm((current) => ({ ...current, [name]: value }))
     setErrors((current) => ({ ...current, [name]: validateField(name, value) }))
@@ -28,7 +31,9 @@ function App() {
     const nextErrors = Object.fromEntries(Object.entries(form).map(([name, value]) => [name, validateField(name, value)]))
     setErrors(nextErrors)
     if (Object.values(nextErrors).some(Boolean)) return
-    setInventory((items) => [...items, { ...form, id: crypto.randomUUID() }])
+    const guitar = { ...form, id: crypto.randomUUID() }
+    setInventory((items) => [...items, guitar])
+    setSelectedId(guitar.id)
     setForm(initialForm)
     setSubmitted(true)
     setView('registry')
@@ -39,9 +44,13 @@ function App() {
     { accessorKey: 'brandName', header: 'Brand' },
     { accessorKey: 'stockQuantity', header: 'In stock' },
   ]
+  useEffect(() => {
+    setActiveGuitar(inventory.find((guitar) => guitar.id === selectedId) ?? null)
+  }, [inventory, selectedId])
+  const displayedInventory = lowStockOnly ? inventory.filter((guitar) => Number(guitar.stockQuantity) <= 10) : inventory
   // TanStack manages its own mutable table instance; it is intentionally not memoized.
   // eslint-disable-next-line react-hooks/incompatible-library
-  const table = useReactTable({ data: inventory, columns, getCoreRowModel: getCoreRowModel(), getPaginationRowModel: getPaginationRowModel(), initialState: { pagination: { pageSize: 3 } } })
+  const table = useReactTable({ data: displayedInventory, columns, getCoreRowModel: getCoreRowModel(), getPaginationRowModel: getPaginationRowModel(), initialState: { pagination: { pageSize: 3 } } })
   return <main className="app-shell">
     <header className="hero-banner"><p className="eyebrow">Guitar Store Inventory Manager</p><h1>Register a guitar</h1><p>Build your store registry one instrument at a time.</p></header>
     <nav className="view-switcher" aria-label="Inventory views"><button className={view === 'form' ? 'active' : ''} type="button" onClick={() => setView('form')}>Register guitar</button><button className={view === 'registry' ? 'active' : ''} type="button" onClick={() => setView('registry')}>Registry <span>{inventory.length}</span></button></nav>
@@ -59,10 +68,12 @@ function App() {
         <div className="form-footer"><button type="submit">Validate guitar</button>{submitted && <p className="success" role="status">All details are valid and ready to add to the registry.</p>}</div>
       </form>
     </section> : <section className="registry-card" aria-labelledby="registry-title">
-      <div className="section-heading"><div><p className="step">Phase 2 · Registry table</p><h2 id="registry-title">Guitar inventory</h2></div><span className="required-note">{inventory.length} {inventory.length === 1 ? 'item' : 'items'} registered</span></div>
+      <div className="section-heading"><div><p className="step">Phase 3 · Active inventory</p><h2 id="registry-title">Guitar inventory</h2></div><span className="required-note">{inventory.length} {inventory.length === 1 ? 'item' : 'items'} registered</span></div>
       {inventory.length === 0 ? <div className="empty-state"><p>No guitars registered yet.</p><button type="button" onClick={() => setView('form')}>Add your first guitar</button></div> : <>
-        <div className="table-wrap"><table><thead>{table.getHeaderGroups().map((group) => <tr key={group.id}>{group.headers.map((header) => <th key={header.id}>{header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}</th>)}</tr>)}</thead><tbody>{table.getRowModel().rows.map((row) => <tr key={row.id}>{row.getVisibleCells().map((cell) => <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>)}</tr>)}</tbody></table></div>
-        <div className="pagination"><span>Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount()}</span><div><button type="button" onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage()}>Previous</button><button type="button" onClick={() => table.nextPage()} disabled={!table.getCanNextPage()}>Next</button></div></div>
+        <label className="filter-control"><input type="checkbox" checked={lowStockOnly} onChange={(event) => { setLowStockOnly(event.target.checked); table.setPageIndex(0) }} /> Show low-stock guitars only (10 or fewer)</label>
+        {displayedInventory.length === 0 ? <p className="filter-empty">No guitars match this filter.</p> : <><div className="table-wrap"><table><thead>{table.getHeaderGroups().map((group) => <tr key={group.id}>{group.headers.map((header) => <th key={header.id}>{header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}</th>)}</tr>)}</thead><tbody>{table.getRowModel().rows.map((row) => <tr className={row.original.id === selectedId ? 'selected-row' : ''} key={row.id} onClick={() => setSelectedId(row.original.id)}>{row.getVisibleCells().map((cell) => <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>)}</tr>)}</tbody></table></div>
+        <div className="pagination"><span>Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount()}</span><div><button type="button" onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage()}>Previous</button><button type="button" onClick={() => table.nextPage()} disabled={!table.getCanNextPage()}>Next</button></div></div></>}
+        {activeGuitar && <aside className="profile-card" aria-live="polite"><div><p className="step">Active guitar profile</p><h3>{activeGuitar.guitarModel}</h3><p>{activeGuitar.brandName} · {activeGuitar.bodyType}</p></div><span className={`role-badge ${activeGuitar.userRole.toLowerCase()}`}>{activeGuitar.userRole}</span><dl><div><dt>Stock quantity</dt><dd>{activeGuitar.stockQuantity}</dd></div><div><dt>Manufacturer</dt><dd>{activeGuitar.manufacturerName}</dd></div></dl></aside>}
       </>}
     </section>}
   </main>
